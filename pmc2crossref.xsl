@@ -21,6 +21,16 @@
   <xsl:template match="/">
     <xsl:if test="/article">
       <doi_batch xsi:schemaLocation="http://www.crossref.org/schema/4.3.1 file:http://www.crossref.org/schema/deposit/crossref4.3.1.xsd">
+        <!-- Insert <head> here-->
+        <!--<head>
+  	      <doi_batch_id>doi_batch_id0</doi_batch_id>
+		      <timestamp>0</timestamp>
+		      <depositor>
+			      <name>name0</name>
+			      <email_address>!@!.--</email_address>
+		      </depositor>
+		      <registrant>registrant0</registrant>
+	      </head>-->
         <body>
           <xsl:apply-templates/>
         </body>
