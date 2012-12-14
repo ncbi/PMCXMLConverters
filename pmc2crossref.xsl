@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <xsl:stylesheet 
-  xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0"
-  xmlns:fr="http://www.crossref.org/fundref.xsd"
-  xmlns="http://www.crossref.org/schema/4.3.1"
+  xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0" 
+  xmlns:fr="http://www.crossref.org/fundref.xsd" 
+  xmlns="http://www.crossref.org/schema/4.3.1" 
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 
   <!-- 
@@ -23,14 +23,14 @@
       <doi_batch xsi:schemaLocation="http://www.crossref.org/schema/4.3.1 file:http://www.crossref.org/schema/deposit/crossref4.3.1.xsd">
         <!-- Insert <head> here-->
         <!--<head>
-  	      <doi_batch_id>doi_batch_id0</doi_batch_id>
-		      <timestamp>0</timestamp>
-		      <depositor>
-			      <name>name0</name>
-			      <email_address>!@!.--</email_address>
-		      </depositor>
-		      <registrant>registrant0</registrant>
-	      </head>-->
+          <doi_batch_id>doi_batch_id0</doi_batch_id>
+          <timestamp>0</timestamp>
+          <depositor>
+            <name>name0</name>
+            <email_address>!@!.-\-</email_address>
+          </depositor>
+          <registrant>registrant0</registrant>
+        </head>-->
         <body>
           <xsl:apply-templates/>
         </body>
@@ -126,6 +126,7 @@
     </xsl:choose>
   </xsl:template>
   
+
   <!-- ==== Title Templates ==== -->
   <xsl:template name="fulltitle">
     <full_title>
@@ -140,7 +141,7 @@
       </xsl:choose>
     </full_title>
   </xsl:template>
-  
+
   <xsl:template match="title-group|subj-group">
     <titles>
       <title>
@@ -148,8 +149,8 @@
       </title>
     </titles>
   </xsl:template>
-  
-  
+
+
   <!-- ==== Author Templates ==== -->
   <xsl:template name="build-contributors">
     <xsl:variable name="_contributors">
