@@ -3,53 +3,104 @@
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0" 
   xmlns:fr="http://www.crossref.org/fundref.xsd" 
   xmlns="http://www.crossref.org/schema/4.3.1" 
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:date="http://exslt.org/dates-and-times">
 
   <!-- 
     pmc2crossref.xsl
     =============================================================
     This stylesheet is intended for converting PMC-compliant JATS
     XML to crossref format for submission to doi.crossref.org. It
-    creates only the <body> element. <head> is a required element
-    and must be added by the depositor.
+    creates the <head> element assuming the depositor is the
+    journal publisher. <email_address> must be added.
     =============================================================
-    2012/12/13
+    2013/1/18
   -->
 
   <xsl:output method="xml" omit-xml-declaration="no" indent="yes"/>
 
   <xsl:template match="/">
-    <xsl:if test="/article">
-      <doi_batch xsi:schemaLocation="http://www.crossref.org/schema/4.3.1 file:http://www.crossref.org/schema/deposit/crossref4.3.1.xsd">
-        <!-- Insert <head> here-->
-        <!--<head>
-          <doi_batch_id>doi_batch_id0</doi_batch_id>
-          <timestamp>0</timestamp>
-          <depositor>
-            <name>name0</name>
-            <email_address>!@!.-\-</email_address>
-          </depositor>
-          <registrant>registrant0</registrant>
-        </head>-->
+    <xsl:if test="string-length(article/front/article-meta/article-id[@pub-id-type='doi']) &gt; 0">">
+      <doi_batch version="4.3.1" xsi:schemaLocation="http://www.crossref.org/schema/4.3.1 http://www.crossref.org/schema/deposit/crossref4.3.1.xsd">
+        <head>
+          <xsl:apply-templates select="article/front"/>
+        </head>
         <body>
-          <xsl:apply-templates/>
+          <xsl:apply-templates select="article"/>
         </body>
       </doi_batch>
     </xsl:if>
   </xsl:template>
+  
+  <!-- ============== -->
+  <!-- Head Templates -->
+  <!-- ============== -->
+  
+  <xsl:template match="front">
+    <doi_batch_id>
+      <xsl:choose>
+        <xsl:when test="article-meta/article-id[@pub-id-type='publisher-id']">
+          <xsl:apply-templates select="article-meta/article-id[@pub-id-type='publisher-id']"/>
+        </xsl:when>
+        <xsl:when test="article-meta/article-id[@pub-id-type='pmid']">
+          <xsl:apply-templates select="article-meta/article-id[@pub-id-type='pmid']"/>
+        </xsl:when>
+        <xsl:when test="article-meta/article-id[@pub-id-type='doi']">
+          <xsl:apply-templates select="article-meta/article-id[@pub-id-type='doi']"/>
+        </xsl:when>
+        <xsl:when test="article-meta/article-id">
+          <xsl:apply-templates select="article-meta/article-id[1]"/>
+        </xsl:when>
+        <xsl:otherwise>
+          <xsl:comment>No article-id is present.</xsl:comment>
+        </xsl:otherwise>
+      </xsl:choose>
+    </doi_batch_id>
+    <timestamp>
+      <xsl:value-of select="translate(date:date-time(), 'T:-.', '')"/>
+    </timestamp>
+    <depositor>
+      <name>
+        <xsl:choose>
+          <xsl:when test="journal-meta/publisher">
+            <xsl:apply-templates select="journal-meta/publisher/publisher-name"/>
+          </xsl:when>
+          <xsl:otherwise>
+            <xsl:comment>No publisher-name present.</xsl:comment>
+          </xsl:otherwise>
+        </xsl:choose>
+      </name>
+      <email_address>
+        <!-- There is no publisher email element in JATS. This content must be added to this stylesheet, or added later in processing.-->
+        <xsl:comment>No email present.</xsl:comment>
+      </email_address>
+    </depositor>
+    <registrant>
+      <xsl:choose>
+        <xsl:when test="journal-meta/publisher">
+          <xsl:apply-templates select="journal-meta/publisher/publisher-name"/>
+        </xsl:when>
+        <xsl:otherwise>
+          <xsl:comment>No publisher-name present.</xsl:comment>
+        </xsl:otherwise>
+      </xsl:choose>
+    </registrant>
+  </xsl:template>
+  
+  <!-- ============== -->
+  <!-- Body Templates -->
+  <!-- ============== -->
 
-  <xsl:template match="/article">
-    <xsl:if test="string-length(front/article-meta/article-id[@pub-id-type='doi']) &gt; 0">
-      <journal>
-        <journal_metadata>
-          <xsl:call-template name="fulltitle"/>
-          <xsl:apply-templates select="front/journal-meta/journal-id[@journal-id-type='nlm-ta']"/>
-          <xsl:apply-templates select="front/journal-meta/issn"/>
-        </journal_metadata>
-        <xsl:call-template name="build-issue"/>
-        <xsl:call-template name="build-article"/>
-      </journal>
-    </xsl:if>
+  <xsl:template match="article">
+    <journal>
+      <journal_metadata>
+        <xsl:call-template name="fulltitle"/>
+        <xsl:apply-templates select="front/journal-meta/journal-id[@journal-id-type='nlm-ta']"/>
+        <xsl:apply-templates select="front/journal-meta/issn"/>
+      </journal_metadata>
+      <xsl:call-template name="build-issue"/>
+      <xsl:call-template name="build-article"/>
+    </journal>
   </xsl:template>
 
   <xsl:template name="build-issue">
