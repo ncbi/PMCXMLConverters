@@ -8,9 +8,10 @@
 		pmc2pubmed.xsl
 		=============================================================
 		This stylesheet transforms instances of PMC Style-compliant 
-		JATS XML to pubmed records. Language handling to be updated.
+		JATS XML to pubmed records. It has been altered from the PMC
+		post-processing stylesheet for more general use.
 		=============================================================
-		2012/12/26
+		2014/03/20
 	-->
 
 	<xsl:output method="xml" omit-xml-declaration="yes" indent="yes" 
@@ -34,19 +35,26 @@
 	<xsl:template match="article">
 		<xsl:variable name="ppub" select="front/article-meta/pub-date[@pub-type='ppub'] | front/article-meta/pub-date[@pub-type='collection']"/>
 		<xsl:variable name="epub" select="front/article-meta/pub-date[@pub-type='epub']"/>
-		<xsl:variable name="alt-lang">
-			<xsl:if test="//article-title[@xml:lang!='en' and @xml:lang!='EN'] | //trans-title[@xml:lang!='en' and @xml:lang!='EN'] | 
-				//alt-title[@xml:lang!='en' and @xml:lang!='EN']">
-				<xsl:for-each select="//article-title[@xml:lang!='en' and @xml:lang!='EN'] | //trans-title[@xml:lang!='en' and @xml:lang!='EN'] | 
-					//alt-title[@xml:lang!='en' and @xml:lang!='EN']">
-					<lang><xsl:value-of select="@xml:lang"/></lang>
-				</xsl:for-each>
-				<xsl:if test="//article-title[@xml:lang='en' or @xml:lang='EN'] | //trans-title[@xml:lang='en' or @xml:lang='EN'] | 
-					//alt-title[@xml:lang='en' or @xml:lang='EN']">
-					<lang>en</lang>
-				</xsl:if>
-			</xsl:if>
-		</xsl:variable>
+	    <xsl:variable name="article-lang">
+	        <xsl:call-template name="capitalize">
+	            <xsl:with-param name="str" select="@xml:lang"/>
+	        </xsl:call-template>
+	    </xsl:variable>
+	    <xsl:variable name="article-title-lang">
+	        <xsl:call-template name="capitalize">
+	            <xsl:with-param name="str" select="descendant::article-title/@xml:lang"/>
+	        </xsl:call-template>
+	    </xsl:variable>
+	    <xsl:variable name="trans-title-lang">
+	        <xsl:call-template name="capitalize">
+	            <xsl:with-param name="str" select="descendant::trans-title/@xml:lang"/>
+	        </xsl:call-template>
+	    </xsl:variable>
+	    <xsl:variable name="alt-title-lang">
+	        <xsl:call-template name="capitalize">
+	            <xsl:with-param name="str" select="descendant::alt-title/@xml:lang"/>
+	        </xsl:call-template>
+	    </xsl:variable>
 		<Journal>
 			<xsl:choose>
 				<xsl:when test="front/journal-meta/publisher/publisher-name/text()">
@@ -58,24 +66,24 @@
 			</xsl:choose>
 			<JournalTitle>
 				<xsl:choose>
-					<xsl:when test="//journal-id[@journal-id-type='nlm-ta']">
-						<xsl:value-of select="//journal-id[@journal-id-type='nlm-ta']"/>
+					<xsl:when test="descendant::journal-id[@journal-id-type='nlm-ta']">
+						<xsl:value-of select="descendant::journal-id[@journal-id-type='nlm-ta']"/>
 					</xsl:when>
 					<xsl:otherwise>
-						<xsl:value-of select="//journal-id[@journal-id-type='iso-abbrev']"/>
+						<xsl:value-of select="descendant::journal-id[@journal-id-type='iso-abbrev']"/>
 					</xsl:otherwise>
 				</xsl:choose>
 			</JournalTitle>
 			<Issn>
 				<xsl:choose>
-					<xsl:when test="//article-meta/pub-date[@pub-type='collection']">
-						<xsl:value-of select="//issn[@pub-type='epub']"/>
+					<xsl:when test="descendant::article-meta/pub-date[@pub-type='collection']">
+						<xsl:value-of select="descendant::issn[@pub-type='epub']"/>
 					</xsl:when>
-					<xsl:when test="contains(//issn[@pub-type='ppub'],'-')">
-						<xsl:value-of select="//issn[@pub-type='ppub']"/>
+				    <xsl:when test="contains(descendant::issn[@pub-type='ppub'],'-')">
+				        <xsl:value-of select="descendant::issn[@pub-type='ppub']"/>
 					</xsl:when>
 					<xsl:otherwise>
-						<xsl:value-of select="//issn[@pub-type='epub']"/>
+					    <xsl:value-of select="descendant::issn[@pub-type='epub']"/>
 					</xsl:otherwise>
 				</xsl:choose>
 			</Issn>
@@ -100,14 +108,14 @@
 						</ELocationID>
 					</xsl:when>
 					<xsl:otherwise>
-						<FirstPage>
+					    <FirstPage LZero="save">
 							<xsl:value-of select="front/article-meta/elocation-id"/>
 						</FirstPage>
 					</xsl:otherwise>
 				</xsl:choose>
 			</xsl:when>
 			<xsl:otherwise>
-				<FirstPage>
+			    <FirstPage LZero="save">
 					<xsl:call-template name="stripdash">
 						<xsl:with-param name="str" select="front/article-meta/fpage"/>
 					</xsl:call-template>
@@ -122,33 +130,42 @@
 			</xsl:otherwise>
 		</xsl:choose>
 
-		<xsl:if test="$alt-lang/*">			
-			<xsl:for-each select="$alt-lang/lang">
-				<Language>
-					<xsl:call-template name="capitalize">
-						<xsl:with-param name="str" select="."/>
-					</xsl:call-template>
-				</Language>
-			</xsl:for-each>
-		</xsl:if>
-
-		<xsl:if test="/article/@xml:lang!='EN' and /article/@xml:lang!='EN-US'">
-			<Language>
-				<xsl:call-template name="capitalize">
-					<xsl:with-param name="str" select="/article/@xml:lang"/>
-				</xsl:call-template>
-			</Language>
-		</xsl:if>
+	    <xsl:choose>
+	        <xsl:when test="($article-lang or $article-title-lang) != ($trans-title-lang or $alt-title-lang)">			
+	            <xsl:for-each select="descendant-or-self::node()[self::article or self::article-title or self::trans-title or self::alt-title]
+     			    [@xml:lang and @xml:lang!='en' and @xml:lang!='EN' and @xml:lang!='en-us' and @xml:lang!='EN-US']">
+     				<Language>
+     					<xsl:call-template name="capitalize">
+     						<xsl:with-param name="str" select="@xml:lang"/>
+     					</xsl:call-template>
+     				</Language>
+     			</xsl:for-each>
+	            <xsl:if test="descendant-or-self::node()[self::article or self::article-title or self::trans-title or self::alt-title]
+     	            [@xml:lang='en' or @xml:lang='EN' or @xml:lang='en-us' or @xml:lang='EN-US']">
+     	           <Language>EN</Language>
+     	        </xsl:if>
+	        </xsl:when>
+	        <xsl:when test="@xml:lang!='EN' and @xml:lang!='EN-US'">
+	            <Language>
+	                <xsl:call-template name="capitalize">
+	                    <xsl:with-param name="str" select="@xml:lang"/>
+	                </xsl:call-template>
+	            </Language>
+	        </xsl:when>
+		</xsl:choose>
 
 		<xsl:apply-templates select="front/article-meta/contrib-group"/>
 
 		<!-- publicationtype -->
-		<xsl:if test="/article/@article-type='correction'">
+		<xsl:if test="@article-type='correction'">
 			<PublicationType>Published Erratum</PublicationType>
 		</xsl:if>
-		<xsl:if test="/article/@article-type='retraction'">
+		<xsl:if test="@article-type='retraction'">
 			<PublicationType>Retraction of Publication</PublicationType>
 		</xsl:if>
+	    <xsl:if test="@article-type='review-article'">
+	        <PublicationType>Review</PublicationType>
+	    </xsl:if>
 
 		<!-- pubidlist -->
 		<xsl:if test="front/article-meta/article-id[@pub-id-type='doi'] or
@@ -195,9 +212,9 @@
 				<xsl:apply-templates select="front/article-meta/abstract[not(@xml:lang)][1]"/>
 			</xsl:when>
 			<xsl:otherwise>
-				<xsl:if test="//related-article[@related-article-type='corrected-article']">
+			    <xsl:if test="descendant::related-article[@related-article-type='corrected-article']">
 					<Abstract>
-						<xsl:for-each select="//related-article[@related-article-type='corrected-article']">
+					    <xsl:for-each select="descendant::related-article[@related-article-type='corrected-article']">
 							<xsl:call-template name="build-cx-relart"/>
 						</xsl:for-each>
 					</Abstract>
@@ -205,10 +222,10 @@
 			</xsl:otherwise>
 		</xsl:choose>
 
-		<xsl:if test="//contract-num | //grant-num">
+	    <xsl:if test="descendant::contract-num | descendant::grant-num">
 			<ObjectList>
 				<xsl:call-template name="build-grants">
-					<xsl:with-param name="nodes" select="//contract-num | //grant-num"/>
+				    <xsl:with-param name="nodes" select="descendant::contract-num | descendant::grant-num"/>
 				</xsl:call-template>
 			</ObjectList>
 		</xsl:if>
@@ -227,7 +244,8 @@
 				</Param>
 				<Param Name="grantor">
 					<xsl:call-template name="clean-grantor">
-						<xsl:with-param name="str" select="//contract-sponsor[@id=$rid][1]/text()|//grant-sponsor[@id=$rid][1]/text()"/>
+					    <xsl:with-param name="str" select="descendant::contract-sponsor[@id=$rid][1]/text()|
+					        descendant::grant-sponsor[@id=$rid][1]/text()"/>
 					</xsl:call-template>
 				</Param>
 			</Object>
@@ -238,25 +256,11 @@
 		<xsl:param name="str"/>
 		<xsl:choose>
 			<xsl:when test="contains($str,' : ')">
-				<xsl:choose>
-					<xsl:when test="//processing-instruction('nihms-journal')">
-						<xsl:value-of select="substring-after($str,' : ')"/>
-					</xsl:when>
-					<xsl:otherwise>
-						<xsl:value-of select="concat('United States ',substring-after($str,' : '))"/>
-					</xsl:otherwise>
-				</xsl:choose>
+				<xsl:value-of select="concat('United States ',substring-after($str,' : '))"/>
 			</xsl:when>
 			<xsl:otherwise>
 				<!-- If no : to delineate column, assume it's UK -->
-				<xsl:choose>
-					<xsl:when test="//processing-instruction('nihms-journal')">
-						<xsl:value-of select="$str"/>
-					</xsl:when>
-					<xsl:otherwise>
-						<xsl:value-of select="concat('United Kingdom ',$str)"/>
-					</xsl:otherwise>
-				</xsl:choose>
+				<xsl:value-of select="concat('United Kingdom ',$str)"/>
 			</xsl:otherwise>
 		</xsl:choose>
 	</xsl:template>
@@ -428,10 +432,10 @@
 
 	<xsl:template match="title-group">
 		<xsl:choose>
-			<xsl:when test="/article/@xml:lang='EN' or /article/@xml:lang='en'">
+			<xsl:when test="ancestor::article/@xml:lang='EN' or ancestor::article/@xml:lang='en'">
 				<ArticleTitle>
 					<xsl:choose>
-						<xsl:when test="//@article-type='correction'">
+						<xsl:when test="ancestor::article/@article-type='correction'">
 							<xsl:choose>
 								<xsl:when test="starts-with(article-title,'Correction') or starts-with(article-title, 'Erratum')
 									or starts-with(article-title, 'Errata')"/>
@@ -698,7 +702,7 @@
 						<xsl:choose>
 							<xsl:when test="aff">
 								<xsl:choose>
-									<xsl:when test="count(//article-meta//aff[@id]) > 1 and xref[@ref-type='aff']">
+									<xsl:when test="count(ancestor::article//article-meta//aff[@id]) > 1 and xref[@ref-type='aff']">
 										<xsl:apply-templates select="aff[@id=$refid]"/>
 									</xsl:when>
 									<xsl:otherwise>
@@ -708,7 +712,7 @@
 							</xsl:when>
 							<xsl:otherwise>
 								<xsl:choose>
-									<xsl:when test="count(//article-meta//aff) > 1 and xref[@ref-type='aff']">
+									<xsl:when test="count(ancestor::article//article-meta//aff) > 1 and xref[@ref-type='aff']">
 										<xsl:choose>
 											<xsl:when test="count(xref[@ref-type='aff']) > 1">
 												<xsl:choose>
@@ -923,7 +927,7 @@
 	<xsl:template match="abstract | trans-abstract">
 		<Abstract>
 			<xsl:apply-templates/>
-			<xsl:for-each select="//related-article[@related-article-type='corrected-article']">
+			<xsl:for-each select="ancestor::article//related-article[@related-article-type='corrected-article']">
 				<xsl:call-template name="build-cx-relart"/>
 			</xsl:for-each>
 		</Abstract>
