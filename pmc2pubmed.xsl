@@ -35,9 +35,18 @@
 	<xsl:template match="article">
 		<xsl:variable name="ppub" select="front/article-meta/pub-date[@pub-type='ppub'] | front/article-meta/pub-date[@pub-type='collection']"/>
 		<xsl:variable name="epub" select="front/article-meta/pub-date[@pub-type='epub']"/>
-	    <xsl:variable name="article-lang">
+	    <xsl:variable name="my-lang">
 	        <xsl:call-template name="capitalize">
-	            <xsl:with-param name="str" select="@xml:lang"/>
+	            <xsl:with-param name="str">
+	               <xsl:choose>
+	                   <xsl:when test="substring-before(@xml-lang, '-')='en'">
+	                       <xsl:value-of select="'en'"/>
+	                   </xsl:when>
+	                   <xsl:otherwise>
+	                       <xsl:value-of select="@xml:lang"/>
+	                   </xsl:otherwise>
+	               </xsl:choose>
+	            </xsl:with-param>
 	        </xsl:call-template>
 	    </xsl:variable>
 	    <xsl:variable name="article-title-lang">
@@ -131,21 +140,19 @@
 		</xsl:choose>
 
 	    <xsl:choose>
-	        <xsl:when test="($article-lang or $article-title-lang) != ($trans-title-lang or $alt-title-lang)">			
-	            <xsl:for-each select="descendant-or-self::node()[self::article or self::article-title or self::trans-title or self::alt-title]
-     			    [@xml:lang and @xml:lang!='en' and @xml:lang!='EN' and @xml:lang!='en-us' and @xml:lang!='EN-US']">
+	        <xsl:when test="$my-lang!=$trans-title-lang or $my-lang!=$alt-title-lang or $article-title-lang!=$trans-title-lang or $article-title-lang!=$alt-title-lang">			
+	            <xsl:for-each select="descendant-or-self::node()[self::article or self::article-title or self::trans-title or self::alt-title][@xml:lang and not(contains(@xml:lang, 'en') or contains(@xml:lang, 'EN'))]">
      				<Language>
      					<xsl:call-template name="capitalize">
      						<xsl:with-param name="str" select="@xml:lang"/>
      					</xsl:call-template>
      				</Language>
      			</xsl:for-each>
-	            <xsl:if test="descendant-or-self::node()[self::article or self::article-title or self::trans-title or self::alt-title]
-     	            [@xml:lang='en' or @xml:lang='EN' or @xml:lang='en-us' or @xml:lang='EN-US']">
+	            <xsl:if test="descendant-or-self::node()[self::article or self::article-title or self::trans-title or self::alt-title][contains(@xml:lang, 'en') or contains(@xml:lang, 'EN')]">
      	           <Language>EN</Language>
      	        </xsl:if>
 	        </xsl:when>
-	        <xsl:when test="@xml:lang!='EN' and @xml:lang!='EN-US'">
+	        <xsl:when test="$my-lang!='EN'">
 	            <Language>
 	                <xsl:call-template name="capitalize">
 	                    <xsl:with-param name="str" select="@xml:lang"/>
@@ -180,12 +187,12 @@
 		<xsl:if test="front/article-meta/history/date[@date-type='received'] | 
 			front/article-meta/history/date[@date-type='rev-recd'] | 
 			front/article-meta/history/date[@date-type='accepted'] | 
-			front/article-meta/pub-date[@pub-type='epub'][day]">
+			front/article-meta/pub-date[@pub-type='collection']">
 			<History>
+			    <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='collection']"/>
 				<xsl:apply-templates select="front/article-meta/history/date[@date-type='received']"/>
 				<xsl:apply-templates select="front/article-meta/history/date[@date-type='rev-recd']"/>
 				<xsl:apply-templates select="front/article-meta/history/date[@date-type='accepted']"/>
-
 				<xsl:if test="$ppub!=$epub">
 					<xsl:if test="front/article-meta/pub-date[@pub-type='epub']/day">
 						<!-- Do not process if there is no epub day -->
@@ -194,40 +201,56 @@
 				</xsl:if>
 			</History>
 		</xsl:if>
-
-		<xsl:choose>
-			<xsl:when test="front/article-meta/abstract[@xml:lang='en'] or front/article-meta/abstract[@xml:lang='EN']">
-				<xsl:apply-templates select="front/article-meta/abstract[@xml:lang='en'] | front/article-meta/abstract[@xml:lang='EN']"/>
-			</xsl:when>
-			<xsl:when test="front/article-meta/trans-abstract[@xml:lang='en'] or front/article-meta/trans-abstract[@xml:lang='EN']">
-				<xsl:apply-templates select="front/article-meta/trans-abstract[@xml:lang='en'] | front/article-meta/trans-abstract[@xml:lang='EN']"/>
-			</xsl:when>
-			<xsl:when test="front/article-meta/abstract[not(attribute::abstract-type)]">
-				<xsl:apply-templates select="front/article-meta/abstract[not(@abstract-type) and not(@xml:lang)]"/>
-			</xsl:when>
-			<xsl:when test="front/article-meta/abstract[@abstract-type='short']">
-				<xsl:apply-templates select="front/article-meta/abstract[@abstract-type='short']"/>
-			</xsl:when>
-			<xsl:when test="front/article-meta/abstract">
-				<xsl:apply-templates select="front/article-meta/abstract[not(@xml:lang)][1]"/>
-			</xsl:when>
-			<xsl:otherwise>
-			    <xsl:if test="descendant::related-article[@related-article-type='corrected-article']">
-					<Abstract>
-					    <xsl:for-each select="descendant::related-article[@related-article-type='corrected-article']">
-							<xsl:call-template name="build-cx-relart"/>
-						</xsl:for-each>
-					</Abstract>
-				</xsl:if>
-			</xsl:otherwise>
-		</xsl:choose>
+	    
+	    <!-- == Process abstracts == -->
+	    <xsl:choose>
+	        <xsl:when test="front/article-meta/abstract[contains(@xml:lang, 'en') or contains(@xml:lang, 'EN')][not(@abstract-type)] 
+	            or ($my-lang='EN' and front/article-meta/abstract[not(@xml:lang)][not(@abstract-type)])">
+	            <xsl:apply-templates select="front/article-meta/abstract[contains(@xml:lang, 'en') or contains(@xml:lang, 'EN')][not(@abstract-type)] | front/article-meta/abstract[not(@xml:lang)][not(@abstract-type)]"/>
+	        </xsl:when>
+	        <xsl:when test="front/article-meta/trans-abstract[contains(@xml:lang, 'en') or contains(@xml:lang, 'EN')][not(@abstract-type)]">
+	            <xsl:apply-templates select="front/article-meta/trans-abstract[contains(@xml:lang, 'en') or contains(@xml:lang, 'EN')][not(@abstract-type)]"/>
+	        </xsl:when>
+	        <xsl:when test="front/article-meta/abstract[not(attribute::abstract-type)] and $my-lang='EN'">
+	            <xsl:apply-templates select="front/article-meta/abstract[not(@abstract-type) and not(@xml:lang)]"/>
+	        </xsl:when>
+	        <xsl:when test="front/article-meta/abstract[@abstract-type='short'] and $my-lang='EN'">
+	            <xsl:apply-templates select="front/article-meta/abstract[@abstract-type='short']"/>
+	        </xsl:when>
+	        <xsl:when test="front/article-meta/abstract and $my-lang='EN'">
+	            <xsl:apply-templates select="front/article-meta/abstract[not(@xml:lang)][1]"/>
+	        </xsl:when>
+	        <xsl:otherwise>
+	            <xsl:if test="//related-article[@related-article-type='corrected-article']">
+	                <Abstract>
+	                    <xsl:for-each select="//related-article[@related-article-type='corrected-article']">
+	                        <xsl:call-template name="build-cx-relart"/>
+	                    </xsl:for-each>
+	                </Abstract>
+	            </xsl:if>
+	        </xsl:otherwise>
+	    </xsl:choose>		
+	    
+	    <!-- OtherAbstract -->
+	    <xsl:if test="($my-lang!='EN' and front/article-meta/abstract[not(@xml:lang)]) 
+	        or front/article-meta/abstract[not(contains(@xml:lang, 'en') or contains(@xml:lang, 'EN'))] 
+	        or front/article-meta/trans-abstract[not(contains(@xml:lang, 'en') or contains(@xml:lang, 'EN'))]">
+	        <xsl:apply-templates select="front/article-meta/abstract[not(contains(@xml:lang, 'en') or contains(@xml:lang, 'EN'))] | front/article-meta/trans-abstract[not(contains(@xml:lang, 'en') or contains(@xml:lang, 'EN'))]" mode="other-abstract">
+	            <xsl:with-param name="my-lang" select="$my-lang"/>
+	        </xsl:apply-templates>			
+	    </xsl:if>
 
 	    <xsl:if test="descendant::contract-num | descendant::grant-num">
-			<ObjectList>
-				<xsl:call-template name="build-grants">
-				    <xsl:with-param name="nodes" select="descendant::contract-num | descendant::grant-num"/>
-				</xsl:call-template>
-			</ObjectList>
+	        <ObjectList>
+	            <xsl:call-template name="build-grants">
+	                <xsl:with-param name="nodes" select="//contract-num | //grant-num"/>
+	            </xsl:call-template>
+	            <xsl:call-template name="find-kwd-group">
+	                <xsl:with-param name="nodes" select="//article-meta/kwd-group"/>
+	                <xsl:with-param name="in-OL" select="'yes'"/>
+	                <xsl:with-param name="my-lang" select="$my-lang"/>
+	            </xsl:call-template>				
+	        </ObjectList>
 		</xsl:if>
 
 	</xsl:template>
@@ -264,35 +287,51 @@
 			</xsl:otherwise>
 		</xsl:choose>
 	</xsl:template>
+    
+    <xsl:template name="find-kwd-group">
+        <xsl:param name="nodes"/>
+        <xsl:param name="in-OL"/>
+        <xsl:param name="my-lang"/>
+        <xsl:choose>
+            <xsl:when test="$nodes/@xml:lang[contains(., 'en') or contains(., 'EN')]">
+                <xsl:choose>
+                    <xsl:when test="$in-OL='no'">
+                        <ObjectList>
+                            <xsl:apply-templates select="$nodes[contains(@xml:lang, 'en') or contains(@xml:lang, 'EN')]/kwd"/>
+                        </ObjectList>
+                    </xsl:when>
+                    <xsl:otherwise>
+                        <xsl:apply-templates select="$nodes[contains(@xml:lang, 'en') or contains(@xml:lang, 'EN')]/kwd"/>				
+                    </xsl:otherwise>
+                </xsl:choose>
+            </xsl:when>
+            <xsl:when test="$my-lang='EN' and $nodes[not(@xml:lang)]">				
+                <xsl:choose>
+                    <xsl:when test="$in-OL='no'">
+                        <ObjectList>
+                            <xsl:apply-templates select="$nodes[not(@xml:lang)]/kwd"/>
+                        </ObjectList>
+                    </xsl:when>
+                    <xsl:otherwise>
+                        <xsl:apply-templates select="$nodes[not(@xml:lang)]/kwd"/>						
+                    </xsl:otherwise>
+                </xsl:choose>
+            </xsl:when>
+        </xsl:choose>
+    </xsl:template>
+    
+    <xsl:template match="kwd">
+        <Object Type="keyword">
+            <Param Name="value">
+                <xsl:apply-templates/>
+            </Param>
+        </Object>
+    </xsl:template>
+    
+    <xsl:template match="kwd/bold | kwd/italic | kwd/sup | kwd/sub">
+        <xsl:apply-templates/>
+    </xsl:template>
 
-	<xsl:template name="build-grants-from-pi">
-		<xsl:param name="str"/>
-		<xsl:variable name="country" select="substring-after(substring-after(substring-after(substring-after(substring-after($str,'|'),'|'),'|'),'|'),'|')"/>
-		<xsl:variable name="grantno" select="substring-before(substring-after($str,'|'),'|')"/>
-		<xsl:variable name="agency">
-			<xsl:choose>
-				<xsl:when test="contains(substring-before($str,'|'),'Howard Hughes')">
-					<xsl:value-of select="substring-before($str, '|')"/>
-				</xsl:when>
-				<xsl:when test="$country='United States'">
-					<xsl:value-of select="substring-before(substring-after(substring-after(substring-after($str,'|'),'|'),'|'),'|')"/>
-				</xsl:when>
-				<xsl:otherwise>
-					<xsl:value-of select="substring-before($str,'|')"/>
-				</xsl:otherwise>
-			</xsl:choose>
-		</xsl:variable>
-		<Object Type="grant">
-			<xsl:if test="$agency != 'Howard Hughes Medical Institute'">
-				<Param Name="id">
-					<xsl:value-of select="$grantno"/>
-				</Param>
-			</xsl:if>
-			<Param Name="grantor">
-				<xsl:value-of select="concat($country,' ',$agency)"/>
-			</Param>
-		</Object>
-	</xsl:template>
 	
 	<!-- ==== Correction link ==== -->
 
@@ -350,58 +389,63 @@
 
 	<xsl:template name="PubDate">
 		<xsl:choose>
-			<xsl:when test="front/article-meta/pub-date/@pub-type='ppub' and front/article-meta/pub-date/@pub-type='epub'">
-				<!-- When ppub and epub both exist, write ppub as PubDate and epub in History.
-					 PubMed loader picks up epub date from history and converts it to PubDate PubStatus="epub" -->
-				<PubDate PubStatus="ppublish">
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='ppub']/year"/>
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='ppub']/month"/>
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='ppub']/day"/>
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='ppub']/season"/>
-				</PubDate>
-			</xsl:when>
-			<xsl:when test="(count(front/article-meta/pub-date[@pub-type!='pmc-release'])>1 and 
-				front/article-meta/pub-date[@pub-type='epub'] and front/article-meta/pub-date[@pub-type='collection'] and 
-				not(front/article-meta/pub-date[@pub-type='epub']/day)) or (count(front/article-meta/pub-date[@pub-type!='pmc-release'])=1 and
-				front/article-meta/pub-date[@pub-type='epub'] and not(front/article-meta/pub-date/day))">
-				<!-- When only pub-date is epub and there is no day, do not write @PubStatus. 
+		    <xsl:when test="front/article-meta/pub-date/@pub-type='ppub' and front/article-meta/pub-date/@pub-type='epub'">
+		        <!-- When ppub and epub both exist, write ppub as PubDate and epub in History.
+					PubMed loader picks up epub date from history and converts it to PubDate PubStatus="epub" -->
+		        <PubDate PubStatus="ppublish">
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='ppub']/year"/>
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='ppub']/month"/>
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='ppub']/day"/>
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='ppub']/season"/>					
+		        </PubDate>
+		    </xsl:when>
+		    <xsl:when test="(count(front/article-meta/pub-date[@pub-type!='pmc-release'])>1 and front/article-meta/pub-date[@pub-type='epub'] and front/article-meta/pub-date[@pub-type='collection'] and not(front/article-meta/pub-date[@pub-type='epub']/day)) or (count(front/article-meta/pub-date[@pub-type!='pmc-release'])=1 and front/article-meta/pub-date[@pub-type='epub'] and not(front/article-meta/pub-date/day))">
+		        <!-- When only pub-date is epub and there is no day, do not write @PubStatus. 
 					 PubStatus="epublish" requires Day element which we don't have. -->
-				<PubDate>
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/year"/>
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/month"/>
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/season"/>
-				</PubDate>
-			</xsl:when>
-			<xsl:when test="count(front/article-meta/pub-date[@pub-type!='pmc-release'][@pub-type!='epreprint'])=1 and
-				front/article-meta/pub-date[@pub-type='epub']">
-				<!-- When there's only 1 pub-date and it's an epub date, send as epublilsh and do
-					not send ppublish value -->
-				<PubDate PubStatus="epublish">
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/year"/>
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/month"/>
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/day"/>
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/season"/>
-				</PubDate>
-			</xsl:when>
-			<xsl:when test="count(front/article-meta/pub-date[@pub-type!='pmc-release'])>1 and front/article-meta/pub-date[@pub-type='epub'] and
-				front/article-meta/pub-date[@pub-type='collection']">
-				<!-- If we have epub and collection, send collection as PubDate, epub in History -->
-				<PubDate>
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='collection']/year"/>
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='collection']/month"/>
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='collection']/day"/>
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='collection']/season"/>
-				</PubDate>
-			</xsl:when>
-			<xsl:when test="front/article-meta/pub-date[@pub-type='nihms-submitted'] and not(front/article-meta-pub-date[@pub-type='ppub']) 
-				and front/article-meta/pub-date[@pub-type='epub']">
-				<!-- When there's an nihms-submitted date, no ppub date, but an epub date, send that without PubStatus -->
-				<PubDate>
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/year"/>
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/month"/>
-					<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/day"/>
-				</PubDate>
-			</xsl:when>
+		        <PubDate>
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/year"/>
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/month"/>
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/season"/>
+		        </PubDate>	
+		    </xsl:when>
+		    <xsl:when test="count(front/article-meta/pub-date[@pub-type!='pmc-release'][@pub-type!='epreprint'])=1 and front/article-meta/pub-date[@pub-type='epub']">
+		        <!-- When there's only 1 pub-date and it's an epub date, send as epublish and do
+					 not send ppublish value -->
+		        <PubDate PubStatus="epublish">
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/year"/>
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/month"/>
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/day"/>
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/season"/>
+		        </PubDate>	
+		    </xsl:when>
+		    <xsl:when test="count(front/article-meta/pub-date[@pub-type!='pmc-release'])>1 
+		        and front/article-meta/pub-date[@pub-type='epub'] and front/article-meta/pub-date[@pub-type='collection']">			
+		        <!-- Send collection date as ppublish in history -->
+		        <PubDate PubStatus="epublish">
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/year"/>
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/month"/>
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/day"/>
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/season"/>
+		        </PubDate>	
+		    </xsl:when>
+		    <xsl:when test="front/article-meta/pub-date[@pub-type='nihms-submitted'] and not(front/article-meta-pub-date[@pub-type='ppub'])
+		        and front/article-meta/pub-date[@pub-type='epub']">
+		        <!-- When there's an nihms-submitted date, no ppub date, but an epub date, send that without PubStatus -->
+		        <PubDate>
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/year"/>
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/month"/>
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='epub']/day"/>
+		        </PubDate>	
+		    </xsl:when>
+		    <xsl:when test="front/article-meta/pub-date[@pub-type='collection']">
+		        <PubDate PubStatus="ecollection">
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='collection']/year"/>
+		            <xsl:apply-templates
+		                select="front/article-meta/pub-date[@pub-type='collection']/month"/>
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='collection']/day"/>
+		            <xsl:apply-templates select="front/article-meta/pub-date[@pub-type='ppub']/season"/>
+		        </PubDate>
+		    </xsl:when>
 			<xsl:otherwise>
 				<PubDate PubStatus="ppublish">
 					<xsl:choose>
@@ -409,12 +453,6 @@
 							<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='ppub']/year"/>
 							<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='ppub']/month"/>
 							<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='ppub']/day"/>
-							<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='ppub']/season"/>
-						</xsl:when>
-						<xsl:when test="front/article-meta/pub-date[@pub-type='collection']">
-							<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='collection']/year"/>
-							<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='collection']/month"/>
-							<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='collection']/day"/>
 							<xsl:apply-templates select="front/article-meta/pub-date[@pub-type='ppub']/season"/>
 						</xsl:when>
 						<xsl:when test="front/article-meta/pub-date[@pub-type='epub-ppub']">
@@ -437,8 +475,14 @@
 					<xsl:choose>
 						<xsl:when test="ancestor::article/@article-type='correction'">
 							<xsl:choose>
-								<xsl:when test="starts-with(article-title,'Correction') or starts-with(article-title, 'Erratum')
-									or starts-with(article-title, 'Errata')"/>
+							    <xsl:when test="starts-with(article-title,'CORRIGEND')
+							        or starts-with(article-title,'Corrigend')
+							        or starts-with(article-title,'CORRECTION')
+							        or starts-with(article-title,'Correction')
+							        or starts-with(article-title, 'ERRATA')
+							        or starts-with(article-title, 'Errata')
+							        or starts-with(article-title, 'ERRATUM')
+							        or starts-with(article-title, 'Erratum')"/>
 								<xsl:otherwise>
 									<xsl:text>Erratum: </xsl:text>
 								</xsl:otherwise>
@@ -537,6 +581,15 @@
 			</PubDate>
 		</xsl:if>
 	</xsl:template>
+    
+    <xsl:template match="pub-date[@pub-type='collection']">
+        <PubDate PubStatus="ecollection">
+            <xsl:apply-templates select="year"/>
+            <xsl:apply-templates select="month"/>
+            <xsl:apply-templates select="day"/>
+            <xsl:apply-templates select="season"/>
+        </PubDate>
+    </xsl:template>
 
 	<xsl:template match="pub-date[@pub-type='epub']">
 		<PubDate PubStatus="epublish">
@@ -579,7 +632,7 @@
 					<xsl:with-param name="position" select="position()"/>
 				</xsl:apply-templates>
 			</xsl:for-each>
-			<!-- grab autors from other contrib groups in article-meta -->
+			<!-- grab authors from other contrib groups in article-meta -->
 			<xsl:for-each select="following-sibling::contrib-group/contrib[not(attribute::contrib-type='editor')]">
 				<xsl:apply-templates select=".">
 					<xsl:with-param name="position" select="position()"/>
@@ -609,167 +662,181 @@
 	
 	<xsl:template match="contrib-group[position()!=1]"/>
 
-	<xsl:template match="contrib[not(attribute::contrib-type='editor')]">
-		<xsl:param name="position"/>
-		<xsl:variable name="clean-fname" select="normalize-space(name/given-names)"/>
-
-		<xsl:variable name="fname" select="substring($clean-fname,2,1)"/>
-		<xsl:variable name="ftest">
-			<xsl:call-template name="capitalize">
-				<xsl:with-param name="str" select="substring($clean-fname,2,1)"/>
-			</xsl:call-template>
-		</xsl:variable>
-		<!--	called by for-each so position will always be 1
-			xsl:variable name="auno" select="position()"/ -->
-		<xsl:variable name="firstau">
-			<xsl:choose>
-				<xsl:when test="preceding-sibling::contrib[not(attribute::contrib-type='editor')]">
-					<xsl:text>no</xsl:text>
-				</xsl:when>
-				<xsl:otherwise>
-					<xsl:text>yes</xsl:text>
-				</xsl:otherwise>
-			</xsl:choose>
-		</xsl:variable>
-		<xsl:variable name="refid" select="xref[@ref-type='aff'][1]/@rid"/>
-		<Author>
-			<xsl:choose>
-				<xsl:when test="collab">
-					<CollectiveName>
-						<xsl:apply-templates select="collab/*[not(self::contrib-group)] | collab/text()"/>
-					</CollectiveName>
-				</xsl:when>
-				<xsl:otherwise>
-					<FirstName>
-						<xsl:choose>
-							<xsl:when test="name[@content-type='index']/given-names/node()">
-								<xsl:choose>
-									<xsl:when test="name[@content-type='index']/given-names/@initials">
-										<xsl:choose>
-											<xsl:when test="string-length(name[@content-type='index']/given-names) > string-length(name[@content-type='index']/given-names/@initials)">
-												<xsl:value-of select="normalize-space(name[@content-type='index']/given-names)"/>
-											</xsl:when>
-											<xsl:otherwise>
-												<xsl:call-template name="process-initials">
-													<xsl:with-param name="str" select="name[@content-type='index']/given-names/@initials"/>
-												</xsl:call-template>
-											</xsl:otherwise>
-										</xsl:choose>
-									</xsl:when>
-									<xsl:otherwise>
-										<xsl:value-of select="normalize-space(name[@content-type='index']/given-names)"/>
-									</xsl:otherwise>
-								</xsl:choose>
-							</xsl:when>
-							<xsl:when test="name/given-names/node()">
-								<xsl:choose>
-									<xsl:when test="name/given-names/@initials">
-										<xsl:choose>
-											<xsl:when test="string-length(name/given-names) > string-length(name/given-names/@initials)">
-												<xsl:value-of select="normalize-space(name/given-names)"/>
-											</xsl:when>
-											<xsl:otherwise>
-												<xsl:call-template name="process-initials">
-													<xsl:with-param name="str" select="name/given-names/@initials"/>
-												</xsl:call-template>
-											</xsl:otherwise>
-										</xsl:choose>
-									</xsl:when>
-									<xsl:otherwise>
-										<xsl:value-of select="normalize-space(name/given-names)"/>
-									</xsl:otherwise>
-								</xsl:choose>
-							</xsl:when>
-							<xsl:otherwise>
-								<xsl:attribute name="EmptyYN">
-									<xsl:value-of select="'Y'"/>
-								</xsl:attribute>
-							</xsl:otherwise>
-						</xsl:choose>
-					</FirstName>
-					<LastName>
-						<xsl:choose>
-							<xsl:when test="name[@content-type='index']">
-								<xsl:value-of select="normalize-space(name[@content-type='index']/surname)"/>
-							</xsl:when>
-							<xsl:otherwise>
-								<xsl:value-of select="normalize-space(name/surname)"/>
-							</xsl:otherwise>
-						</xsl:choose>
-					</LastName>
-					<xsl:apply-templates select="name/suffix"/>
-					<xsl:if test="$firstau='yes'">
-						<xsl:choose>
-							<xsl:when test="aff">
-								<xsl:choose>
-									<xsl:when test="count(ancestor::article//article-meta//aff[@id]) > 1 and xref[@ref-type='aff']">
-										<xsl:apply-templates select="aff[@id=$refid]"/>
-									</xsl:when>
-									<xsl:otherwise>
-										<xsl:apply-templates select="aff[1]"/>
-									</xsl:otherwise>
-								</xsl:choose>
-							</xsl:when>
-							<xsl:otherwise>
-								<xsl:choose>
-									<xsl:when test="count(ancestor::article//article-meta//aff) > 1 and xref[@ref-type='aff']">
-										<xsl:choose>
-											<xsl:when test="count(xref[@ref-type='aff']) > 1">
-												<xsl:choose>
-													<xsl:when test="ancestor::contrib-group/aff">
-														<Affiliation>
-															<xsl:for-each select="xref[@ref-type='aff']">
-																<xsl:variable name="my-rid" select="@rid"/>
-																<xsl:apply-templates select="ancestor::contrib-group/aff[@id=$my-rid]">
-																	<xsl:with-param name="in-aff" select="'yes'"/>
-																</xsl:apply-templates>
-																<xsl:if test="following-sibling::xref[@ref-type='aff']">
-																	<xsl:text>; </xsl:text>
-																</xsl:if>
-															</xsl:for-each>
-														</Affiliation>
-													</xsl:when>
-													<xsl:otherwise>
-														<Affiliation>
-															<xsl:for-each select="xref[@ref-type='aff']">
-																<xsl:variable name="my-rid" select="@rid"/>
-																<xsl:apply-templates select="ancestor::contrib-group/following-sibling::aff[@id=$my-rid]">
-																	<xsl:with-param name="in-aff" select="'yes'"/>
-																</xsl:apply-templates>
-																<xsl:if test="following-sibling::xref[@ref-type='aff']">
-																	<xsl:text>; </xsl:text>
-																</xsl:if>
-															</xsl:for-each>
-														</Affiliation>
-													</xsl:otherwise>
-												</xsl:choose>
-											</xsl:when>
-											<xsl:otherwise>
-												<xsl:choose>
-													<xsl:when test="ancestor::contrib-group/aff">
-														<xsl:apply-templates select="ancestor::contrib-group/aff[@id=$refid]"/>
-													</xsl:when>
-													<xsl:otherwise>
-														<xsl:apply-templates select="ancestor::contrib-group/following-sibling::aff[@id=$refid]"/>
-													</xsl:otherwise>
-												</xsl:choose>
-											</xsl:otherwise>
-										</xsl:choose>
-									</xsl:when>
-									<xsl:when test="following-sibling::aff">
-										<xsl:apply-templates select="following-sibling::aff[1]"/>
-									</xsl:when>
-									<xsl:otherwise>
-										<xsl:apply-templates select="ancestor::contrib-group/following-sibling::aff[1]"/>
-									</xsl:otherwise>
-								</xsl:choose>
-							</xsl:otherwise>
-						</xsl:choose>
-					</xsl:if>
-				</xsl:otherwise>
-			</xsl:choose>
-		</Author>
-	</xsl:template>
+    <xsl:template match="contrib[not(attribute::contrib-type='editor')]">
+        <xsl:param name="position"/>
+        <xsl:variable name="clean-fname" select="normalize-space(name/given-names)"/>
+        
+        <xsl:variable name="fname" select="substring($clean-fname,2,1)"/>
+        <xsl:variable name="ftest">
+            <xsl:call-template name="capitalize">
+                <xsl:with-param name="str" select="substring($clean-fname,2,1)"/>
+            </xsl:call-template>
+        </xsl:variable>
+        <xsl:variable name="refid" select="xref[@ref-type='aff'][1]/@rid"/>
+        
+        <Author>
+            <xsl:choose>
+                <xsl:when test="collab">
+                    <CollectiveName>
+                        <xsl:apply-templates select="collab/*[not(self::contrib-group)] | collab/text()"/>
+                    </CollectiveName>
+                </xsl:when>
+                <xsl:otherwise>
+                    <FirstName>
+                        <xsl:choose>
+                            <xsl:when test="name[@name-style='given-only']">
+                                <xsl:attribute name="EmptyYN">
+                                    <xsl:value-of select="'Y'"/>
+                                </xsl:attribute>
+                            </xsl:when>
+                            <xsl:when test="name[@content-type='index']/given-names/node()">
+                                <xsl:choose>
+                                    <xsl:when test="name[@content-type='index']/given-names/@initials">
+                                        <xsl:choose>
+                                            <xsl:when test="string-length(name[@content-type='index']/given-names) > string-length(name[@content-type='index']/given-names/@initials)">
+                                                <xsl:value-of select="normalize-space(name[@content-type='index']/given-names)"/>
+                                            </xsl:when>
+                                            <xsl:otherwise>
+                                                <xsl:call-template name="process-initials">
+                                                    <xsl:with-param name="str" select="name[@content-type='index']/given-names/@initials"/>
+                                                </xsl:call-template>
+                                            </xsl:otherwise>
+                                        </xsl:choose>
+                                    </xsl:when>
+                                    <xsl:otherwise>
+                                        <xsl:value-of select="normalize-space(name[@content-type='index']/given-names)"/>
+                                    </xsl:otherwise>
+                                </xsl:choose>
+                            </xsl:when>
+                            <xsl:when test="name/given-names/node()">
+                                <xsl:choose>
+                                    <xsl:when test="name/given-names/@initials">
+                                        <xsl:choose>
+                                            <xsl:when test="string-length(name/given-names) > string-length(name/given-names/@initials)">
+                                                <xsl:value-of select="normalize-space(name/given-names)"/>
+                                            </xsl:when>
+                                            <xsl:otherwise>
+                                                <xsl:call-template name="process-initials">
+                                                    <xsl:with-param name="str" select="name/given-names/@initials"/>
+                                                </xsl:call-template>
+                                            </xsl:otherwise>
+                                        </xsl:choose>
+                                    </xsl:when>
+                                    <xsl:otherwise>
+                                        <xsl:value-of select="normalize-space(name/given-names)"/>
+                                    </xsl:otherwise>
+                                </xsl:choose>	        			
+                            </xsl:when>                			
+                            <xsl:otherwise>
+                                <xsl:attribute name="EmptyYN">
+                                    <xsl:value-of select="'Y'"/>
+                                </xsl:attribute>
+                            </xsl:otherwise>
+                        </xsl:choose>
+                    </FirstName>
+                    <LastName>
+                        <xsl:choose>
+                            <xsl:when test="name[@name-style='given-only']">
+                                <xsl:value-of select="normalize-space(name/given-names)"/>
+                            </xsl:when>
+                            <xsl:when test="name[@content-type='index']">
+                                <xsl:value-of select="normalize-space(name[@content-type='index']/surname)"/>
+                            </xsl:when>
+                            <xsl:otherwise>
+                                <xsl:value-of select="normalize-space(name/surname)"/>
+                            </xsl:otherwise>
+                        </xsl:choose>
+                    </LastName>
+                    <xsl:apply-templates select="name/suffix"/>
+                    <xsl:choose>
+                        <xsl:when test="aff">
+                            <xsl:choose>
+                                <xsl:when test="$jidab='pnas'">
+                                    <xsl:apply-templates select="aff"/>
+                                </xsl:when>
+                                <xsl:when test="count(//article-meta//aff[@id]) > 1 and xref[@ref-type='aff']">
+                                    <xsl:apply-templates select="aff[@id=$refid]"/>
+                                </xsl:when>
+                                <xsl:otherwise>
+                                    <xsl:apply-templates select="aff[1]"/>
+                                </xsl:otherwise>
+                            </xsl:choose>
+                        </xsl:when>
+                        <xsl:otherwise>
+                            <xsl:choose>
+                                <xsl:when test="$jidab='pnas'">
+                                    <xsl:apply-templates
+                                        select="ancestor::contrib-group/following-sibling::aff[position()=$position]"/>
+                                </xsl:when>
+                                <xsl:when test="count(//article-meta//aff) > 1 and xref[@ref-type='aff']">
+                                    <xsl:choose>
+                                        <xsl:when test="count(xref[@ref-type='aff']) > 1">
+                                            <xsl:choose>
+                                                <xsl:when test="ancestor::contrib-group/aff">
+                                                    <Affiliation>
+                                                        <xsl:for-each select="xref[@ref-type='aff']">
+                                                            <xsl:variable name="my-rid" select="@rid"/>	
+                                                            <xsl:apply-templates select="ancestor::contrib-group/aff[@id=$my-rid]">
+                                                                <xsl:with-param name="in-aff" select="'yes'"/>
+                                                            </xsl:apply-templates>
+                                                            <xsl:if test="following-sibling::xref[@ref-type='aff']">
+                                                                <xsl:text>; </xsl:text>
+                                                            </xsl:if>
+                                                        </xsl:for-each>
+                                                    </Affiliation>
+                                                </xsl:when>
+                                                <xsl:otherwise>	        											
+                                                    <Affiliation>
+                                                        <xsl:for-each select="xref[@ref-type='aff']">
+                                                            <xsl:variable name="my-rid" select="@rid"/>	
+                                                            <xsl:apply-templates select="ancestor::contrib-group/following-sibling::aff[@id=$my-rid]">
+                                                                <xsl:with-param name="in-aff" select="'yes'"/>
+                                                            </xsl:apply-templates>
+                                                            <xsl:if test="following-sibling::xref[@ref-type='aff']">
+                                                                <xsl:text>; </xsl:text>
+                                                            </xsl:if>
+                                                        </xsl:for-each>
+                                                    </Affiliation>
+                                                </xsl:otherwise>
+                                            </xsl:choose>
+                                        </xsl:when>
+                                        <xsl:otherwise>
+                                            <xsl:choose>
+                                                <xsl:when test="ancestor::contrib-group/aff">
+                                                    <xsl:apply-templates select="ancestor::contrib-group/aff[@id=$refid]"/>
+                                                </xsl:when>
+                                                <xsl:otherwise>
+                                                    <xsl:apply-templates select="ancestor::contrib-group/following-sibling::aff[@id=$refid]"/>
+                                                </xsl:otherwise>        											
+                                            </xsl:choose>
+                                        </xsl:otherwise>        									
+                                    </xsl:choose>
+                                </xsl:when>
+                                <xsl:when test="following-sibling::aff">
+                                    <xsl:apply-templates select="following-sibling::aff[1]"/>
+                                </xsl:when>
+                                <xsl:otherwise>
+                                    <xsl:apply-templates select="ancestor::contrib-group/following-sibling::aff[1]"/>
+                                </xsl:otherwise>
+                            </xsl:choose>
+                        </xsl:otherwise>
+                    </xsl:choose>
+                </xsl:otherwise>
+            </xsl:choose>
+            <xsl:if test="contrib-id[@contrib-id-type='orcid']">
+                <Identifier Source="ORCID">
+                    <xsl:choose>
+                        <xsl:when test="contains(contrib-id[@contrib-id-type='orcid'], 'http://orcid.org/')">
+                            <xsl:value-of select="substring-after(contrib-id[@contrib-id-type='orcid'],'http://orcid.org/')"/>
+                        </xsl:when>
+                        <xsl:otherwise>
+                            <xsl:value-of select="contrib-id[@contrib-id-type='orcid']"/>
+                        </xsl:otherwise>
+                    </xsl:choose>
+                </Identifier>
+            </xsl:if>
+        </Author>
+    </xsl:template>
 
 	<xsl:template name="process-initials">
 		<xsl:param name="str"/>
