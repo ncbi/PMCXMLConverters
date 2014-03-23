@@ -751,9 +751,6 @@
                     <xsl:choose>
                         <xsl:when test="aff">
                             <xsl:choose>
-                                <xsl:when test="$jidab='pnas'">
-                                    <xsl:apply-templates select="aff"/>
-                                </xsl:when>
                                 <xsl:when test="count(//article-meta//aff[@id]) > 1 and xref[@ref-type='aff']">
                                     <xsl:apply-templates select="aff[@id=$refid]"/>
                                 </xsl:when>
@@ -764,10 +761,6 @@
                         </xsl:when>
                         <xsl:otherwise>
                             <xsl:choose>
-                                <xsl:when test="$jidab='pnas'">
-                                    <xsl:apply-templates
-                                        select="ancestor::contrib-group/following-sibling::aff[position()=$position]"/>
-                                </xsl:when>
                                 <xsl:when test="count(//article-meta//aff) > 1 and xref[@ref-type='aff']">
                                     <xsl:choose>
                                         <xsl:when test="count(xref[@ref-type='aff']) > 1">
@@ -984,90 +977,133 @@
 		</ArticleId>
 	</xsl:template>
 
-
 	<xsl:template match="article-id[@pub-id-type='publisher-id']">
 		<ArticleId IdType="pii">
 			<xsl:apply-templates/>
 		</ArticleId>
 	</xsl:template>
 
-	<xsl:template match="abstract | trans-abstract">
-		<Abstract>
-			<xsl:apply-templates/>
-			<xsl:for-each select="ancestor::article//related-article[@related-article-type='corrected-article']">
-				<xsl:call-template name="build-cx-relart"/>
-			</xsl:for-each>
-		</Abstract>
-	</xsl:template>
+    <xsl:template match="abstract | trans-abstract">
+        <Abstract>
+            <xsl:choose>
+                <xsl:when test="sec[not(title='Electronic supplementary material') and not(title='Images') and normalize-space(title)] and p">
+                    <AbstractText Label="">
+                        <xsl:apply-templates select="p"/>
+                    </AbstractText>
+                    <xsl:apply-templates select="sec"/>					
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:apply-templates/>
+                </xsl:otherwise>
+            </xsl:choose>
+            <xsl:if test="//related-article[@related-article-type='corrected-article']">
+                <xsl:choose>
+                    <xsl:when test="sec">
+                        <AbstractText Label="">
+                            <xsl:for-each select="//related-article[@related-article-type='corrected-article']">
+                                <xsl:call-template name="build-cx-relart"/>
+                            </xsl:for-each>
+                        </AbstractText>
+                    </xsl:when>
+                    <xsl:otherwise>
+                        <xsl:for-each select="//related-article[@related-article-type='corrected-article']">
+                            <xsl:call-template name="build-cx-relart"/>
+                        </xsl:for-each>
+                    </xsl:otherwise>
+                </xsl:choose>
+            </xsl:if>
+        </Abstract>
+    </xsl:template>
+    
+    <xsl:template match="abstract | trans-abstract" mode="other-abstract">
+        <xsl:param name="my-lang"/>
+        <OtherAbstract>
+            <xsl:attribute name='Language'>
+                <xsl:choose>
+                    <xsl:when test="@xml:lang">
+                        <xsl:value-of select="@xml:lang"/>
+                    </xsl:when>
+                    <xsl:otherwise>
+                        <xsl:value-of select="$my-lang"/>
+                    </xsl:otherwise>
+                </xsl:choose>
+            </xsl:attribute>
+            <xsl:choose>
+                <xsl:when test="sec[not(title='Electronic supplementary material') and not(title='Images') and normalize-space(title)] and p">
+                    <AbstractText Label="">
+                        <xsl:apply-templates select="p"/>
+                    </AbstractText>
+                    <xsl:apply-templates select="sec"/>					
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:apply-templates/>
+                </xsl:otherwise>
+            </xsl:choose>				
+        </OtherAbstract>
+    </xsl:template>
 
-	<xsl:template match="abstract/title"/>
+    <xsl:template match="abstract/title | trans-abstract/title"/>    
+    
+    <!-- If citation is in abstract, strip all elements and text-dump -->
+    <xsl:template match="abstract//citation">
+        <xsl:apply-templates mode="notag"/>
+    </xsl:template>
 
-	<!-- If citation is in abstract, strip all elements and text-dump -->
-	<xsl:template match="abstract//citation">
-		<xsl:apply-templates mode="notag"/>
-	</xsl:template>
-
-	<xsl:template match="sec">
-		<xsl:choose>
-			<xsl:when test="title ='Images'"/>
-			<!-- throwing away Images sections from scanning system -->
-			<xsl:otherwise>
-				<xsl:apply-templates/>
-			</xsl:otherwise>
-		</xsl:choose>
-	</xsl:template>
-
-	<xsl:template match="sec/p">
-		<xsl:choose>
-			<xsl:when test="name(child::node()[1])='b'">
-				<xsl:apply-templates select="child::node()[1]" mode="abs-st"/>
-				<xsl:apply-templates select="child::node()[not(self::b[1])]|text()"/>
-			</xsl:when>
-			<xsl:otherwise>
-				<xsl:apply-templates/>
-				<xsl:text> </xsl:text>
-			</xsl:otherwise>
-		</xsl:choose>
-	</xsl:template>
-
-	<xsl:template match="b" mode="abs-st">
-		<xsl:text> </xsl:text>
-		<xsl:call-template name="capitalize">
-			<xsl:with-param name="str" select="."/>
-		</xsl:call-template>
-	</xsl:template>
-
-	<xsl:template match="sec/title">
-		<xsl:variable name="value">
-			<xsl:call-template name="kill-whitespaces">
-				<xsl:with-param name="str" select="."/>
-			</xsl:call-template>
-		</xsl:variable>
-		<xsl:choose>
-			<xsl:when test="$value=''"/>
-			<xsl:otherwise>
-				<xsl:text> </xsl:text>
-				<xsl:call-template name="capitalize">
-					<xsl:with-param name="str" select="."/>
-				</xsl:call-template>
-				<xsl:choose>
-					<xsl:when test="contains(.,':')">
-						<xsl:text> </xsl:text>
-					</xsl:when>
-					<xsl:otherwise>
-						<xsl:text>: </xsl:text>
-					</xsl:otherwise>
-				</xsl:choose>
-			</xsl:otherwise>
-		</xsl:choose>
-	</xsl:template>
-	
-	<xsl:template match="inline-formula | disp-formula">
-		<xsl:text>[Formula: see text]</xsl:text>
-	</xsl:template>
+    <xsl:template match="sec">
+        <xsl:choose>
+            <xsl:when test="title ='Images'"/>
+            <xsl:when test="title='Electronic supplementary material'"/>			
+            <xsl:when test="normalize-space(title) or following-sibling::sec">
+                <AbstractText>
+                    <xsl:attribute name="Label">
+                        <xsl:variable name="str">
+                            <xsl:call-template name="voliss-nopunct">
+                                <!-- don't strip all punctuation, just some of it -->
+                                <xsl:with-param name="str" select="normalize-space(title)"/>
+                            </xsl:call-template>
+                        </xsl:variable>
+                        <xsl:call-template name="capitalize">
+                            <xsl:with-param name="str" select="normalize-space($str)"/>
+                        </xsl:call-template>
+                    </xsl:attribute>
+                    <xsl:apply-templates select="node()[not(self::title)]"/>
+                </AbstractText>
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:apply-templates/>
+            </xsl:otherwise>
+        </xsl:choose>
+    </xsl:template>
+    
+    <xsl:template match="sec/p">
+        <xsl:choose>
+            <xsl:when test="name(child::node()[1])='b'">
+                <xsl:apply-templates select="child::node()[1]" mode="abs-st"/>
+                <xsl:apply-templates select="child::node()[not(self::b[1])]|text()"/>
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:apply-templates/>
+                <xsl:text> </xsl:text>
+            </xsl:otherwise>
+        </xsl:choose>
+    </xsl:template>
+    
+    <xsl:template match="b" mode="abs-st">
+        <xsl:text> </xsl:text>
+        <xsl:call-template name="capitalize">
+            <xsl:with-param name="str" select="."/>
+        </xsl:call-template>
+    </xsl:template>
+    
+    <xsl:template match="abstract/p">
+        <xsl:apply-templates/>
+        <xsl:if test="following-sibling::p">
+            <xsl:text> </xsl:text>
+        </xsl:if>
+    </xsl:template>	
 	
 	<xsl:template match="abstract//name/*">
-		<xsl:apply-templates mode="notag"/>
+		<xsl:apply-templates/>
 		<xsl:if test="following-sibling::node()">
 			<xsl:text> </xsl:text>
 		</xsl:if>
@@ -1078,31 +1114,72 @@
 	<xsl:template match="abstract//year">
 		<xsl:apply-templates/>
 	</xsl:template>
+    
+    <xsl:template match="inline-formula | disp-formula">
+        <xsl:text>[Formula: see text]</xsl:text>
+    </xsl:template>
+    
+    <xsl:template match="table-wrap">
+        <xsl:text>[Table: see text] </xsl:text>
+    </xsl:template>
 	
 	<!-- ==== Formatting templates ==== -->
 	
-	<xsl:template match="sup" mode="notag"/>
-	<xsl:template match="sub" mode="notag"/>
-	
-	<xsl:template match="sup">
-		<xsl:if test="ancestor::title-group or ancestor::abstract">
-			<sup>
-				<xsl:apply-templates/>
-			</sup>
-		</xsl:if>
-	</xsl:template>
-	
-	<xsl:template match="sub">
-		<xsl:if test="parent::article-title or parent::subtitle or ancestor::abstract">
-			<inf>
-				<xsl:apply-templates/>
-			</inf>
-		</xsl:if>
-	</xsl:template>
-	
-	<xsl:template match="italic|bold|sc">
-		<xsl:apply-templates/>
-	</xsl:template>
+    <xsl:template match="sup">
+        <xsl:choose>
+            <xsl:when test="ancestor::title-group or ancestor::abstract or ancestor::trans-abstract">
+                <sup>
+                    <xsl:apply-templates/>
+                </sup>
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:apply-templates/>
+            </xsl:otherwise>
+        </xsl:choose>
+    </xsl:template>
+    
+    <xsl:template match="sub">
+        <xsl:choose>
+            <xsl:when test="ancestor::title-group or ancestor::abstract or ancestor::trans-abstract">
+                <inf>
+                    <xsl:apply-templates/>
+                </inf>
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:apply-templates/>
+            </xsl:otherwise>
+        </xsl:choose>
+    </xsl:template>
+    
+    <xsl:template match="sc">
+        <xsl:apply-templates/>
+    </xsl:template>
+    
+    <xsl:template match="italic">
+        <xsl:choose>
+            <xsl:when test="ancestor::title-group or ancestor::abstract or ancestor::trans-abstract">
+                <i>
+                    <xsl:apply-templates/>
+                </i>
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:apply-templates/>
+            </xsl:otherwise>
+        </xsl:choose>
+    </xsl:template>
+    
+    <xsl:template match="bold">
+        <xsl:choose>
+            <xsl:when test="ancestor::title-group or ancestor::abstract or ancestor::trans-abstract">
+                <b>
+                    <xsl:apply-templates/>
+                </b>
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:apply-templates/>
+            </xsl:otherwise>
+        </xsl:choose>
+    </xsl:template>
 	
 	<!-- ==== Miscellaneous named templates ==== -->
 
@@ -1156,7 +1233,7 @@
 					</xsl:call-template>
 				</xsl:when>
 				<xsl:otherwise>
-					<FirstPage>
+				    <FirstPage LZero="save">
 						<xsl:choose>
 							<xsl:when test="$myFpage &lt; $test-fpage">
 								<xsl:value-of select="$myFpage"/>
@@ -1250,5 +1327,11 @@
 		<xsl:param name="str"/>
 		<xsl:value-of select="translate($str,'*','')"/>
 	</xsl:template>
+    
+    <!--Removes punctuation from a string, but keeps "-" -->
+    <xsl:template name="voliss-nopunct">
+        <xsl:param name="str"/>
+        <xsl:value-of select="translate($str,',.()[]{};:','')"/>
+    </xsl:template>   
 
 </xsl:stylesheet>
