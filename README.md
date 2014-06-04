@@ -8,6 +8,10 @@ These XSL files convert PMC Style-compliant JATS XML:
 
 Both PubMed and CrossRef accept submissions of sets of multiple articles. These converters currently work with a single article at a time, but can be edited to convert and wrap multiple articles into a set.
 
+
+### Context
+PubMed Central (PMC) is a free full-text archive of biomedical and life sciences journal literature at the U.S. National Institutes of Health's National Library of Medicine (NIH/NLM). Over 3 million articles have been archived. [Read more] (http://www.ncbi.nlm.nih.gov/pmc/about/intro/)
+
 - - -
 ### Public domain notice
 
